@@ -1,0 +1,9 @@
+from django.apps import AppConfig
+
+
+class MentionsExtensionConfig(AppConfig):
+    default_auto_field = "django.db.models.BigAutoField"
+    label = "mentions"
+    name = "bias_ext_mentions.backend"
+    verbose_name = "Bias Mentions Extension"
+
