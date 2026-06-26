@@ -4,6 +4,15 @@ version = "0.1.0"
 dependencies = ["bias-core>=0.1,<0.2"]
 [project.entry-points."bias.extensions"]
 mentions = "bias_ext_mentions.backend.ext:extend"
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["bias_ext_mentions*"]
+
+[tool.setuptools.data-files]
+"bias_extensions/mentions" = ["extension.json"]
+"bias_extensions/mentions/frontend/admin" = ["frontend/admin/index.js"]
+"bias_extensions/mentions/frontend/forum" = ["frontend/forum/ComposerMentionAutocomplete.vue", "frontend/forum/index.js", "frontend/forum/mentionRuntime.js", "frontend/forum/nodeSdk.js", "frontend/forum/sdk.js"]
+

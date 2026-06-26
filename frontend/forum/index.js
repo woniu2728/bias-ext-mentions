@@ -1,5 +1,5 @@
 import { api } from '@bias/core'
-import { extendForum } from '@bias/forum'
+import { extendForum } from '@bias/core/forum'
 import ComposerMentionAutocomplete from './ComposerMentionAutocomplete.vue'
 import {
   buildMentionReplacement,

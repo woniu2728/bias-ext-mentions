@@ -44,7 +44,7 @@ import {
   ref } from '@bias/core'
 import { getStateBlock,
   getUiCopy
-} from '@bias/forum'
+} from '@bias/core/forum'
 
 const props = defineProps({
   items: {

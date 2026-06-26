@@ -1,4 +1,4 @@
-import { ExtensionGeneratedPermissionsPage } from '@bias/admin/components'
+import { ExtensionGeneratedPermissionsPage } from '@bias/core/components/admin'
 
 export const extend = []
 
