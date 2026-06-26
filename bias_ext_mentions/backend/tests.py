@@ -10,7 +10,7 @@ from bias_core.forum_registry import get_forum_registry
 from bias_core.extensions.runtime import (
     create_runtime_discussion,
 )
-from extensions.testing import ExtensionRuntimeTestMixin
+from bias_core.testing import ExtensionRuntimeTestMixin
 from bias_ext_mentions.backend.models import PostMentionsUser
 from bias_core.extensions.runtime import get_runtime_tag_model
 from bias_core.extensions.runtime import (
@@ -202,7 +202,7 @@ class MentionsExtensionTests(TestCase):
 
         clear_extension_formatter_cache()
         try:
-            with patch("apps.core.extensions.bootstrap.get_extension_host", return_value=app):
+            with patch("bias_core.extensions.bootstrap.get_extension_host", return_value=app):
                 html = apply_extension_formatter_render("<p>查看 #release</p>")
         finally:
             clear_extension_formatter_cache()
@@ -351,6 +351,8 @@ class MentionsExtensionTests(TestCase):
         set_runtime_post_hidden_state(self.post, self.admin, False)
 
         self.assertTrue(PostMentionsUser.objects.filter(post=self.post, mentions_user=mentioned).exists())
+
+
 
 
 
