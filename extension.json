@@ -20,5 +20,8 @@
   "extra": {
     "auto_install": true,
     "auto_enable": true
+  },
+  "security": {
+    "capabilities_notice": "Mention parsing extension; reads user identifiers from content and may trigger mention-related notifications."
   }
 }
