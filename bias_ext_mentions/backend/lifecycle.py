@@ -25,7 +25,7 @@ def apply_post_approved_mentions(*, post, context: dict | None = None, **kwargs)
 
 def apply_post_hidden_mentions(*, post, context: dict | None = None, **kwargs) -> dict:
     if (context or {}).get("is_hidden"):
-        deleted_count, _ = PostMentionsUser.objects.filter(post=post).delete()
+        deleted_count, _ = PostMentionsUser.objects.filter(post_id=post.id).delete()
         return {"mentioned_user_ids": (), "deleted_count": deleted_count}
 
     content = (context or {}).get("content", post.content)
@@ -34,15 +34,15 @@ def apply_post_hidden_mentions(*, post, context: dict | None = None, **kwargs) -
 
 
 def prepare_post_delete_mentions(*, post, context: dict | None = None, **kwargs) -> dict:
-    mentioned_user_ids = tuple(PostMentionsUser.objects.filter(post=post).values_list("mentions_user_id", flat=True))
+    mentioned_user_ids = tuple(PostMentionsUser.objects.filter(post_id=post.id).values_list("mentions_user_id", flat=True))
     if mentioned_user_ids:
-        PostMentionsUser.objects.filter(post=post).delete()
+        PostMentionsUser.objects.filter(post_id=post.id).delete()
     return {"mentioned_user_ids": mentioned_user_ids}
 
 
 def _sync_post_mentions(post, content: str, *, replace_existing: bool) -> tuple[int, ...]:
     if replace_existing:
-        PostMentionsUser.objects.filter(post=post).delete()
+        PostMentionsUser.objects.filter(post_id=post.id).delete()
 
     mentions = extract_mentioned_usernames(content)
     if not mentions:
@@ -52,7 +52,7 @@ def _sync_post_mentions(post, content: str, *, replace_existing: bool) -> tuple[
     mentioned_users = list_runtime_users_by_usernames(mentions)
     for mentioned_user in mentioned_users:
         _, created = PostMentionsUser.objects.get_or_create(
-            post=post,
+            post_id=post.id,
             mentions_user=mentioned_user,
         )
         mentioned_user_ids.append(mentioned_user.id)
