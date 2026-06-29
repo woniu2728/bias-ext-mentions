@@ -6,11 +6,18 @@ from ninja_jwt.tokens import RefreshToken
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from bias_core.forum_registry import get_forum_registry
 from bias_core.extensions.runtime import (
     create_runtime_discussion,
 )
-from bias_core.testing import ExtensionRuntimeTestMixin
+from bias_core.extensions.testing import (
+    ExtensionApplication,
+    ExtensionRuntimeTestMixin,
+    apply_extension_formatter_render,
+    build_extension_test_host,
+    clear_extension_formatter_cache,
+    capture_runtime_events,
+    get_forum_registry,
+)
 from bias_ext_mentions.backend.models import PostMentionsUser
 from bias_core.extensions.runtime import get_runtime_tag_model
 from bias_core.extensions.runtime import (
@@ -20,6 +27,7 @@ from bias_core.extensions.runtime import (
 )
 from bias_core.extensions.runtime import (
     get_runtime_group_model,
+    get_runtime_notification_model,
     get_runtime_permission_model,
     get_runtime_user_model,
 )
@@ -37,6 +45,7 @@ User = RuntimeModelProxy(get_runtime_user_model)
 Group = RuntimeModelProxy(get_runtime_group_model)
 Permission = RuntimeModelProxy(get_runtime_permission_model)
 Tag = RuntimeModelProxy(get_runtime_tag_model)
+Notification = RuntimeModelProxy(get_runtime_notification_model)
 
 
 class MentionsExtensionDiagnosticsTests(ExtensionRuntimeTestMixin, TestCase):
@@ -55,6 +64,38 @@ class MentionsExtensionDiagnosticsTests(ExtensionRuntimeTestMixin, TestCase):
         self.assertFalse(any(item.module_id == "mentions" for item in registry.get_search_filters()))
         self.assertFalse(any(item.module_id == "mentions" for item in registry.get_notification_types()))
 
+    def test_notification_integration_is_optional(self):
+        application = build_extension_test_host("mentions")
+        listener_names = {
+            listener.handler.__name__
+            for listener in application.events.get_listeners(extension_id="mentions")
+        }
+        notification_type_codes = {
+            item.code
+            for item in application.forum_registry.get_notification_types()
+            if item.module_id == "mentions"
+        }
+
+        self.assertIsNone(application.get_service("notifications.service"))
+        self.assertNotIn("handle_user_mentioned_notification", listener_names)
+        self.assertNotIn("userMentioned", notification_type_codes)
+
+    def test_notification_integration_registers_when_notifications_enabled(self):
+        application = build_extension_test_host("notifications", "mentions")
+        listener_names = {
+            listener.handler.__name__
+            for listener in application.events.get_listeners(extension_id="mentions")
+        }
+        notification_type_codes = {
+            item.code
+            for item in application.forum_registry.get_notification_types()
+            if item.module_id == "mentions"
+        }
+
+        self.assertIsNotNone(application.get_service("notifications.service"))
+        self.assertIn("handle_user_mentioned_notification", listener_names)
+        self.assertIn("userMentioned", notification_type_codes)
+
     def test_inspect_reports_mentions_model_as_extension_native(self):
         stdout = StringIO()
         call_command(
@@ -69,12 +110,16 @@ class MentionsExtensionDiagnosticsTests(ExtensionRuntimeTestMixin, TestCase):
         owned_item = audit["items"][0]
 
         self.assertEqual(extension["id"], "mentions")
-        self.assertIn("0001_state_post_mentions_user.py", extension["migration_plan"]["pending_files"])
+        migration_files = {
+            *extension["migration_plan"]["pending_files"],
+            *extension["migration_plan"]["applied_files"],
+        }
+        self.assertIn("0001_state_post_mentions_user.py", migration_files)
         self.assertEqual(audit["extension_native_count"], 1)
         self.assertEqual(audit["app_label_migration_required_count"], 0)
         self.assertEqual(audit["app_label_migration_plan_required_count"], 0)
         self.assertTrue(all(item["storage_origin"] == "extension" for item in audit["items"]))
-        self.assertTrue(all(item["model_module"].startswith("extensions.mentions") for item in audit["items"]))
+        self.assertTrue(all(item["model_module"].startswith("bias_ext_mentions") for item in audit["items"]))
         self.assertEqual(audit["app_label_migration_items"], [])
         self.assertEqual(owned_item["current_app_label"], "mentions")
         self.assertEqual(owned_item["target_app_label"], "mentions")
@@ -181,9 +226,7 @@ class MentionsExtensionTests(TestCase):
 
     def test_mentions_extension_conditionally_renders_tag_mentions_when_tags_enabled(self):
         from bias_core.extensions import ConditionalExtender, ServiceProviderExtender
-        from bias_core.extensions.application import ExtensionApplication
-        from bias_core.extensions.formatter_service import apply_extension_formatter_render, clear_extension_formatter_cache
-        from bias_ext_mentions.backend.ext import tag_mentions_extenders
+        from bias_ext_mentions.backend.tag_contracts import tag_mentions_extenders
 
         Tag.objects.create(name="产品发布", slug="release")
         tags_extension = SimpleNamespace(
@@ -193,7 +236,7 @@ class MentionsExtensionTests(TestCase):
         app = ExtensionApplication(extensions_to_boot=(tags_extension,))
         ServiceProviderExtender(
             "tags.service",
-            "extensions.tags.backend.runtime.tag_service_provider",
+            "bias_ext_tags.backend.runtime.tag_service_provider",
         ).extend(app, SimpleNamespace(extension_id="tags"))
         app.make("providers")
         extension = SimpleNamespace(extension_id="mentions")
@@ -231,6 +274,30 @@ class MentionsExtensionTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["mentionsUsers"][0]["id"], mentioned.id)
         self.assertEqual(payload["mentionsUsers"][0]["username"], mentioned.username)
+
+    def test_mention_event_carries_post_notification_context(self):
+        mentioned = User.objects.create_user(
+            username="mentioned-event-user",
+            email="mentioned-event-user@example.com",
+            password="password123",
+            is_email_confirmed=True,
+        )
+
+        events, dispatch_patch = capture_runtime_events()
+        with dispatch_patch:
+            with self.captureOnCommitCallbacks(execute=True):
+                post = create_runtime_post(
+                    discussion_id=self.discussion.id,
+                    content=f"hello @{mentioned.username}",
+                    user=self.author,
+                )
+
+        event = next(item for item in events if item.__class__.__name__ == "UserMentionedEvent")
+        self.assertEqual(event.post_id, post.id)
+        self.assertEqual(event.discussion_id, self.discussion.id)
+        self.assertEqual(event.mentioned_user_id, mentioned.id)
+        self.assertEqual(event.post_number, post.number)
+        self.assertEqual(event.discussion_title, self.discussion.title)
 
     def test_user_detail_exposes_can_mention_groups_for_self(self):
         user = User.objects.create_user(
@@ -344,13 +411,78 @@ class MentionsExtensionTests(TestCase):
         self.post.refresh_from_db()
         self.assertTrue(PostMentionsUser.objects.filter(post=self.post, mentions_user=mentioned).exists())
 
-        set_runtime_post_hidden_state(self.post, self.admin, True)
+        with self.captureOnCommitCallbacks(execute=True):
+            set_runtime_post_hidden_state(self.post, self.admin, True)
 
         self.assertFalse(PostMentionsUser.objects.filter(post=self.post).exists())
 
         set_runtime_post_hidden_state(self.post, self.admin, False)
 
         self.assertTrue(PostMentionsUser.objects.filter(post=self.post, mentions_user=mentioned).exists())
+
+    def test_updating_post_removes_mention_notification_for_removed_user(self):
+        retained = User.objects.create_user(
+            username="retained-mentioned-user",
+            email="retained-mentioned-user@example.com",
+            password="password123",
+            is_email_confirmed=True,
+        )
+        removed = User.objects.create_user(
+            username="removed-mentioned-user",
+            email="removed-mentioned-user@example.com",
+            password="password123",
+            is_email_confirmed=True,
+        )
+        with self.captureOnCommitCallbacks(execute=True):
+            update_runtime_post(self.post.id, self.author, f"hello @{retained.username} @{removed.username}")
+
+        retained_notification = Notification.objects.get(
+            user=retained,
+            type="userMentioned",
+            subject_id=self.post.id,
+        )
+        removed_notification = Notification.objects.get(
+            user=removed,
+            type="userMentioned",
+            subject_id=self.post.id,
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            update_runtime_post(self.post.id, self.author, f"hello @{retained.username}")
+
+        removed_notification.refresh_from_db()
+        retained_notification.refresh_from_db()
+        self.assertFalse(PostMentionsUser.objects.filter(post=self.post, mentions_user=removed).exists())
+        self.assertTrue(removed_notification.is_deleted)
+        self.assertFalse(retained_notification.is_deleted)
+        self.assertEqual(
+            Notification.objects.filter(
+                user=retained,
+                type="userMentioned",
+                subject_id=self.post.id,
+            ).count(),
+            1,
+        )
+
+    def test_hiding_post_soft_deletes_mention_notifications(self):
+        mentioned = User.objects.create_user(
+            username="hidden-notification-mentioned-user",
+            email="hidden-notification-mentioned-user@example.com",
+            password="password123",
+            is_email_confirmed=True,
+        )
+        with self.captureOnCommitCallbacks(execute=True):
+            update_runtime_post(self.post.id, self.author, f"hello @{mentioned.username}")
+        notification = Notification.objects.get(
+            user=mentioned,
+            type="userMentioned",
+            subject_id=self.post.id,
+        )
+
+        set_runtime_post_hidden_state(self.post, self.admin, True)
+
+        notification.refresh_from_db()
+        self.assertTrue(notification.is_deleted)
 
 
 

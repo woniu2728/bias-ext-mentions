@@ -7,7 +7,14 @@
     "Bias"
   ],
   "dependencies": [
-    "core"
+    "core",
+    "users",
+    "content",
+    "posts"
+  ],
+  "optional_dependencies": [
+    "tags",
+    "notifications"
   ],
   "django": {
     "app_config": "bias_ext_mentions.backend.apps.MentionsExtensionConfig",

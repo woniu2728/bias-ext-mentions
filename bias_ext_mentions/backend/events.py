@@ -12,4 +12,5 @@ class UserMentionedEvent(DomainEvent):
     actor_user_id: int | None
     mentioned_user_id: int
     post_number: int | None = None
+    discussion_title: str = ""
 

@@ -12,8 +12,8 @@ def handle_user_mentioned_notification(event: UserMentionedEvent) -> None:
         return
 
     notify_runtime_notification(
-        "notify_user_mentioned",
-        post_id=event.post_id,
+        "notify_user_mentioned_from_event",
+        event=event,
         mentioned_user=mentioned_user,
         from_user=from_user,
     )
