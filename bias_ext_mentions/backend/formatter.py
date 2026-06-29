@@ -1,5 +1,10 @@
-from bias_core.extensions.runtime import get_runtime_username_id_map
 from bias_ext_mentions.backend.parser import MENTION_RE, extract_mentioned_usernames
+
+
+def get_runtime_username_id_map(*args, **kwargs):
+    from bias_core.extensions.runtime import get_runtime_username_id_map as runtime_get_runtime_username_id_map
+
+    return runtime_get_runtime_username_id_map(*args, **kwargs)
 
 
 def render_mentions_html(html: str) -> str:

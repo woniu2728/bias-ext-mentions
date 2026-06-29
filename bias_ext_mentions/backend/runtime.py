@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from bias_core.extensions.runtime import require_extension_host_service
-
 
 def mention_service_provider() -> dict:
     from bias_ext_mentions.backend.models import PostMentionsUser
@@ -9,6 +7,12 @@ def mention_service_provider() -> dict:
     return {
         "model": PostMentionsUser,
     }
+
+
+def require_extension_host_service(*args, **kwargs):
+    from bias_core.extensions.runtime import require_extension_host_service as runtime_require_extension_host_service
+
+    return runtime_require_extension_host_service(*args, **kwargs)
 
 
 def get_post_mention_model():

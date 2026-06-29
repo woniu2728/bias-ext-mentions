@@ -1,11 +1,21 @@
 from bias_core.extensions.platform import dispatch_forum_event_after_commit
-from bias_core.extensions.runtime import (
-    delete_runtime_user_mentioned_notifications_for_post,
-    list_runtime_users_by_usernames,
-)
 from bias_ext_mentions.backend.events import UserMentionedEvent
 from bias_ext_mentions.backend.models import PostMentionsUser
 from bias_ext_mentions.backend.parser import extract_mentioned_usernames
+
+
+def delete_runtime_user_mentioned_notifications_for_post(*args, **kwargs):
+    from bias_core.extensions.runtime import (
+        delete_runtime_user_mentioned_notifications_for_post as runtime_delete_user_mentioned_notifications_for_post,
+    )
+
+    return runtime_delete_user_mentioned_notifications_for_post(*args, **kwargs)
+
+
+def list_runtime_users_by_usernames(*args, **kwargs):
+    from bias_core.extensions.runtime import list_runtime_users_by_usernames as runtime_list_users_by_usernames
+
+    return runtime_list_users_by_usernames(*args, **kwargs)
 
 
 def apply_post_created_mentions(*, post, context: dict | None = None, **kwargs) -> dict:

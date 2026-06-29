@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 from bias_core.extensions import ResourceFieldDefinition
-from bias_core.extensions.runtime import has_runtime_forum_permission
 
 from bias_ext_mentions.backend.constants import EXTENSION_ID
+
+
+def has_runtime_forum_permission(*args, **kwargs):
+    from bias_core.extensions.runtime import has_runtime_forum_permission as runtime_has_forum_permission
+
+    return runtime_has_forum_permission(*args, **kwargs)
 
 
 def user_detail_resource_field_definitions():
