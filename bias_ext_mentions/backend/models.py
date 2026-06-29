@@ -7,7 +7,7 @@ class PostMentionsUser(models.Model):
     帖子提及用户关系，由 mentions 扩展拥有。
     """
 
-    post = models.ForeignKey("posts.Post", on_delete=models.CASCADE, related_name="mentions")
+    post = models.ForeignKey("content.Post", on_delete=models.CASCADE, related_name="mentions")
     mentions_user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
