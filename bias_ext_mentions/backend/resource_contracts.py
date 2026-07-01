@@ -5,10 +5,20 @@ from bias_core.extensions import ResourceFieldDefinition
 from bias_ext_mentions.backend.constants import EXTENSION_ID
 
 
-def has_runtime_forum_permission(*args, **kwargs):
-    from bias_core.extensions.runtime import has_runtime_forum_permission as runtime_has_forum_permission
+def get_user_service():
+    from bias_core.extensions.runtime import get_runtime_service
 
-    return runtime_has_forum_permission(*args, **kwargs)
+    return get_runtime_service("users.service")
+
+
+def _service_method(service, name: str):
+    if isinstance(service, dict):
+        method = service.get(name)
+    else:
+        method = getattr(service, name, None)
+    if not callable(method):
+        raise RuntimeError(f"Mentions 扩展运行时服务缺少方法: {name}")
+    return method
 
 
 def user_detail_resource_field_definitions():
@@ -26,7 +36,7 @@ def user_detail_resource_field_definitions():
 
 def resolve_user_can_mention_groups(user, context: dict) -> bool:
     actor = context.get("user")
-    return bool(actor and has_runtime_forum_permission(actor, "mentionGroups"))
+    return bool(actor and _service_method(get_user_service(), "has_forum_permission")(actor, "mentionGroups"))
 
 
 def _visible_to_self(user, context: dict) -> bool:

@@ -1,10 +1,20 @@
 from bias_ext_mentions.backend.parser import MENTION_RE, extract_mentioned_usernames
 
 
-def get_runtime_username_id_map(*args, **kwargs):
-    from bias_core.extensions.runtime import get_runtime_username_id_map as runtime_get_runtime_username_id_map
+def get_user_service():
+    from bias_core.extensions.runtime import get_runtime_service
 
-    return runtime_get_runtime_username_id_map(*args, **kwargs)
+    return get_runtime_service("users.service")
+
+
+def _service_method(service, name: str):
+    if isinstance(service, dict):
+        method = service.get(name)
+    else:
+        method = getattr(service, name, None)
+    if not callable(method):
+        raise RuntimeError(f"Mentions 扩展运行时服务缺少方法: {name}")
+    return method
 
 
 def render_mentions_html(html: str) -> str:
@@ -12,7 +22,7 @@ def render_mentions_html(html: str) -> str:
         return ""
 
     mention_names = set(extract_mentioned_usernames(html))
-    mention_map = get_runtime_username_id_map(mention_names)
+    mention_map = _service_method(get_user_service(), "username_id_map")(mention_names)
 
     def replace_mention(match):
         username = match.group(1)

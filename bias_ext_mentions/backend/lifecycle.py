@@ -4,18 +4,22 @@ from bias_ext_mentions.backend.models import PostMentionsUser
 from bias_ext_mentions.backend.parser import extract_mentioned_usernames
 
 
-def delete_runtime_user_mentioned_notifications_for_post(*args, **kwargs):
-    from bias_core.extensions.runtime import (
-        delete_runtime_user_mentioned_notifications_for_post as runtime_delete_user_mentioned_notifications_for_post,
-    )
+def get_runtime_service(service_key: str, default=None):
+    from bias_core.extensions.runtime import get_runtime_service as runtime_get_service
 
-    return runtime_delete_user_mentioned_notifications_for_post(*args, **kwargs)
+    return runtime_get_service(service_key, default)
 
 
-def list_runtime_users_by_usernames(*args, **kwargs):
-    from bias_core.extensions.runtime import list_runtime_users_by_usernames as runtime_list_users_by_usernames
-
-    return runtime_list_users_by_usernames(*args, **kwargs)
+def _service_method(service, name: str, *, required: bool = True):
+    if isinstance(service, dict):
+        method = service.get(name)
+    else:
+        method = getattr(service, name, None)
+    if callable(method):
+        return method
+    if required:
+        raise RuntimeError(f"Mentions 扩展运行时服务缺少方法: {name}")
+    return None
 
 
 def apply_post_created_mentions(*, post, context: dict | None = None, **kwargs) -> dict:
@@ -71,7 +75,7 @@ def _sync_post_mentions(post, content: str, *, replace_existing: bool) -> tuple[
         return ()
 
     mentioned_user_ids: list[int] = []
-    mentioned_users = list_runtime_users_by_usernames(mentions)
+    mentioned_users = _service_method(get_runtime_service("users.service"), "list_by_usernames")(mentions)
     for mentioned_user in mentioned_users:
         _, created = PostMentionsUser.objects.get_or_create(
             post_id=post.id,
@@ -102,9 +106,14 @@ def _current_mentioned_user_ids(post_id: int) -> tuple[int, ...]:
 
 
 def _delete_mention_notifications(post_id: int, user_ids: tuple[int, ...]) -> int:
+    service = get_runtime_service("notifications.service")
+    delete_for_post = _service_method(service, "delete_user_mentioned_for_post", required=False) if service is not None else None
+    if delete_for_post is None:
+        return 0
+
     deleted_count = 0
     for user_id in user_ids:
-        deleted_count += delete_runtime_user_mentioned_notifications_for_post(
+        deleted_count += delete_for_post(
             post_id,
             mentioned_user_id=user_id,
         )

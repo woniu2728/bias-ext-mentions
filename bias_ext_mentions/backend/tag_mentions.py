@@ -12,9 +12,17 @@ def render_tag_mentions_html(html: str) -> str:
     if not slugs:
         return html
 
-    from bias_core.extensions.runtime import get_runtime_tag_summaries_by_slugs
+    from bias_core.extensions.runtime import get_runtime_service
 
-    tag_map = get_runtime_tag_summaries_by_slugs(slugs)
+    service = get_runtime_service("tags.service")
+    if isinstance(service, dict):
+        summaries_by_slugs = service.get("summaries_by_slugs")
+    else:
+        summaries_by_slugs = getattr(service, "summaries_by_slugs", None)
+    if not callable(summaries_by_slugs):
+        return html
+
+    tag_map = summaries_by_slugs(slugs)
     if not tag_map:
         return html
 
